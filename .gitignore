@@ -1,0 +1,23 @@
+*.db
+*.db-wal
+*.db-shm
+#Entorno virtual
+.venv/
+.env/
+ENV/
+#Secretor y variables
+.env
+,env.*
+#caches de pyton
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+
+# Archivos temporales de editores
+*.swp
+*.swo
+*~
+
+
+logs/

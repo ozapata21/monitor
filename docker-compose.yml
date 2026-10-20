@@ -1,0 +1,43 @@
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: ""
+      DB_HOST: ${DB_HOST_DOCKER:-host.docker.internal}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_NAME: ${DB_NAME:-monitor}
+      DB_USER: ${DB_USER:?Set DB_USER in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      EMAIL_LOG_FILE: /data/email_notifications.log
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${API_PORT:-8000}:8000"
+      - "${SYSLOG_HOST_PORT:-5514}:5514/udp"
+    volumes:
+      - noc_data:/data
+    # Permite ICMP sin privilegios para el usuario no-root del contenedor
+    sysctls:
+      net.ipv4.ping_group_range: "0 2147483647"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  dashboard:
+    build: .
+    restart: unless-stopped
+    command: ["streamlit", "run", "dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--browser.gatherUsageStats=false"]
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "${DASHBOARD_PORT:-8501}:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  noc_data:
