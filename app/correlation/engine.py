@@ -25,6 +25,7 @@ class AlertEvent:
     timestamp: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
+    email_notifications_enabled: bool = True
 
 
 class CorrelationEngine:
@@ -35,6 +36,7 @@ class CorrelationEngine:
         self._window = flap_window
         self._parents: dict[str, Optional[str]] = {}
         self._names: dict[str, str] = {}
+        self._email_notifications_enabled: dict[str, bool] = {}
         self._state: dict[str, DeviceStatus] = {}
         self._transitions: dict[str, deque[float]] = defaultdict(deque)
         self._flapping: set[str] = set()
@@ -44,6 +46,9 @@ class CorrelationEngine:
         devices = list(devices)
         self._parents = {d.id: d.parent_device_id for d in devices}
         self._names = {d.id: d.hostname for d in devices}
+        self._email_notifications_enabled = {
+            d.id: getattr(d, "email_notifications_enabled", True) for d in devices
+        }
         for registry in (self._state, self._transitions):
             for gone in set(registry) - set(self._parents):
                 del registry[gone]
@@ -67,7 +72,14 @@ class CorrelationEngine:
             q.popleft()
 
     def _event(self, device_id: str, kind: AlertKind, message: str, root: Optional[str] = None) -> AlertEvent:
-        return AlertEvent(device_id, self._names.get(device_id, device_id), kind, message, root)
+        return AlertEvent(
+            device_id,
+            self._names.get(device_id, device_id),
+            kind,
+            message,
+            root,
+            email_notifications_enabled=self._email_notifications_enabled.get(device_id, True),
+        )
 
     def _down_or_suppress(self, device_id: str) -> list[AlertEvent]:
         root = self._root_down_ancestor(device_id)

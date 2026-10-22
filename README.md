@@ -32,7 +32,7 @@ python -m venv .venv
 .venv/bin/python -m pytest -q
 ```
 
-Deben pasar 20 tests.
+Deben pasar 23 tests.
 
 ## 3. Levantar con Docker
 
@@ -60,6 +60,15 @@ docker compose down          # detener
 4. `POST /devices`: registrar una cámara con `parent_device_id` igual al `id` del switch (puede llevar `rtsp_url`).
 5. Permisos: con el token `VIEWER`, `POST /devices` devuelve 403. Con `OPERATOR`, `DELETE` devuelve 403.
 6. `GET /audit-logs` (admin): muestra los registros de lo anterior.
+
+Para evitar correos repetitivos de un equipo inestable, al registrarlo incluye `"email_notifications_enabled": false`, o cambia la opción desde el dashboard como `OPERATOR`/`ADMIN`. También se puede actualizar por API:
+
+```json
+PATCH /devices/{id}
+{"email_notifications_enabled": false}
+```
+
+El valor predeterminado es `true`. Deshabilitarlo omite únicamente el correo: la alerta se conserva en el historial y sigue enviándose por webhook o Telegram si están configurados.
 
 | Endpoint | Viewer | Operator | Admin |
 |---|---|---|---|

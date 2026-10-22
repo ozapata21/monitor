@@ -96,6 +96,15 @@ class EmailNotifier:
         self._timeout = timeout
 
     async def send(self, event: AlertEvent) -> None:
+        if not event.email_notifications_enabled:
+            _email_delivery_logger().info(
+                "status=SUPPRESSED kind=%r device_id=%r hostname=%r recipient=%r",
+                event.kind.value,
+                event.device_id,
+                event.hostname,
+                self._recipient,
+            )
+            return
         try:
             await asyncio.to_thread(self._send_sync, event)
         except Exception as exc:

@@ -46,7 +46,22 @@ async def test_rbac_and_audit(client):
     r = await client.post("/devices", json=body, headers=operator)
     assert r.status_code == 201
     parent = r.json()
+    assert parent["email_notifications_enabled"] is True
     assert "snmp_community" not in parent and "snmp_community_encrypted" not in parent
+
+    muted = await client.patch(
+        f"/devices/{parent['id']}",
+        json={"email_notifications_enabled": False},
+        headers=operator,
+    )
+    assert muted.status_code == 200
+    assert muted.json()["email_notifications_enabled"] is False
+    null_preference = await client.patch(
+        f"/devices/{parent['id']}",
+        json={"email_notifications_enabled": None},
+        headers=operator,
+    )
+    assert null_preference.status_code == 422
 
     async with AsyncSessionLocal() as s:
         dev = await s.get(Device, parent["id"])

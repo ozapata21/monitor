@@ -1,4 +1,4 @@
-from sqlalchemy import event
+from sqlalchemy import event, inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import DeclarativeBase
@@ -55,3 +55,12 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_add_email_notifications_column)
+
+
+def _add_email_notifications_column(sync_conn) -> None:
+    columns = {column["name"] for column in inspect(sync_conn).get_columns("devices")}
+    if "email_notifications_enabled" not in columns:
+        sync_conn.execute(text(
+            "ALTER TABLE devices ADD COLUMN email_notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE"
+        ))

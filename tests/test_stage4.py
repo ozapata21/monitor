@@ -9,7 +9,9 @@ from app.db.session import AsyncSessionLocal, init_db
 from app.models.alert import Alert
 from app.models.device import Device, DeviceStatus, DeviceType
 
-from sqlalchemy import select
+from sqlalchemy import create_engine, inspect, select, text
+
+from app.db.session import _add_email_notifications_column
 
 DOWN, UP = DeviceStatus.DOWN, DeviceStatus.UP
 
@@ -55,6 +57,31 @@ def test_independent_child_down_alerts():
     eng = _engine()
     eng.process("cam", UP, now=0)
     assert [e.kind for e in eng.process("cam", DOWN, now=1)] == [AlertKind.DOWN]
+
+
+def test_alert_event_inherits_device_email_preference():
+    device = _dev("unstable-device")
+    device.email_notifications_enabled = False
+    eng = CorrelationEngine()
+    eng.set_topology([device])
+
+    event = eng.process(device.id, DOWN, now=1)[0]
+
+    assert event.email_notifications_enabled is False
+
+
+def test_email_notification_migration_upgrades_existing_sqlite_table():
+    engine = create_engine("sqlite://")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE devices (id VARCHAR(36) PRIMARY KEY)"))
+        _add_email_notifications_column(connection)
+        columns = {column["name"] for column in inspect(connection).get_columns("devices")}
+        assert "email_notifications_enabled" in columns
+        connection.execute(text("INSERT INTO devices (id) VALUES ('legacy-device')"))
+        value = connection.execute(text(
+            "SELECT email_notifications_enabled FROM devices WHERE id = 'legacy-device'"
+        )).scalar_one()
+        assert value == 1
 
 
 def test_flapping_window():
@@ -117,6 +144,28 @@ async def test_email_notifier_sends_message_with_tls_and_auth(monkeypatch, tmp_p
     assert "status=ACCEPTED_BY_SMTP" in log_contents
     assert "device-1" in log_contents
     assert "secret" not in log_contents
+
+
+async def test_email_notifier_skips_muted_device(monkeypatch, tmp_path):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("SMTP no debe conectarse para un dispositivo silenciado")
+
+    monkeypatch.setattr(notifiers.smtplib, "SMTP", fail_if_called)
+    monkeypatch.setattr(notifiers.settings, "EMAIL_LOG_FILE", str(tmp_path / "email.log"))
+    notifier = EmailNotifier(
+        host="smtp.example.com", port=587, sender="noc@example.com",
+        recipient="admin@example.com",
+    )
+    event = AlertEvent(
+        device_id="device-muted", hostname="unstable-sensor", kind=AlertKind.DOWN,
+        message="El dispositivo está caído", email_notifications_enabled=False,
+    )
+
+    await notifier.send(event)
+
+    log_contents = (tmp_path / "email.log").read_text()
+    assert "status=SUPPRESSED" in log_contents
+    assert "device-muted" in log_contents
 
 
 async def test_email_notifier_logs_smtp_failure_without_password(monkeypatch, tmp_path):

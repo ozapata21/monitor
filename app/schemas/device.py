@@ -19,6 +19,7 @@ class DeviceBase(BaseModel):
     device_type: DeviceType
     site_id: str = Field(min_length=1, max_length=50)
     parent_device_id: Optional[str] = None
+    email_notifications_enabled: bool = True
 
     @field_validator("ip_address")
     @classmethod
@@ -40,9 +41,17 @@ class DeviceUpdate(BaseModel):
     device_type: Optional[DeviceType] = None
     site_id: Optional[str] = Field(default=None, min_length=1, max_length=50)
     parent_device_id: Optional[str] = None
+    email_notifications_enabled: Optional[bool] = None
     snmp_community: Optional[str] = None
     rtsp_url: Optional[str] = None
     snmp_v3: Optional[SnmpV3Credentials] = None
+
+    @field_validator("email_notifications_enabled")
+    @classmethod
+    def _email_notifications_must_be_boolean(cls, value: Optional[bool]) -> Optional[bool]:
+        if value is None:
+            raise ValueError("email_notifications_enabled no puede ser null")
+        return value
 
     @field_validator("ip_address")
     @classmethod

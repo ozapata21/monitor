@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, Enum as SQLEnum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -36,6 +36,7 @@ class Device(Base):
     device_type: Mapped[DeviceType] = mapped_column(SQLEnum(DeviceType), nullable=False)
     site_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     status: Mapped[DeviceStatus] = mapped_column(SQLEnum(DeviceStatus), default=DeviceStatus.UNKNOWN)
+    email_notifications_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Árbol de dependencias para la correlación de fallos
     parent_device_id: Mapped[Optional[str]] = mapped_column(

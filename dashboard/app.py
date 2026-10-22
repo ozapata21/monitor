@@ -19,6 +19,16 @@ def api_get(path: str, **params):
     return r.json()
 
 
+def api_patch(path: str, payload: dict):
+    headers = {"Authorization": f"Bearer {st.session_state['token']}"}
+    r = httpx.patch(f"{API_URL}{path}", headers=headers, json=payload, timeout=10)
+    if r.status_code == 401:
+        st.session_state.pop("token", None)
+        st.rerun()
+    r.raise_for_status()
+    return r.json()
+
+
 def login_view() -> None:
     st.title("NOC Python Monitor")
     with st.form("login"):
@@ -43,6 +53,7 @@ def login_view() -> None:
 @st.fragment(run_every=30)
 def dashboard_view() -> None:
     devices = api_get("/devices", limit=500)
+    current_user = api_get("/auth/me")
     df = pd.DataFrame(devices)
 
     st.subheader("Estado general")
@@ -58,9 +69,31 @@ def dashboard_view() -> None:
         site = st.selectbox("Sitio", ["Todos"] + sorted(df["site_id"].unique()))
         view = df if site == "Todos" else df[df["site_id"] == site]
         st.dataframe(
-            view[["hostname", "ip_address", "device_type", "site_id", "status", "updated_at"]],
+            view[["hostname", "ip_address", "device_type", "site_id", "status",
+                  "email_notifications_enabled", "updated_at"]],
             use_container_width=True, hide_index=True,
         )
+
+        if current_user["role"] in ("ADMIN", "OPERATOR"):
+            st.subheader("Notificaciones por correo")
+            with st.form("email-notification-settings"):
+                selected_name = st.selectbox("Dispositivo", view["hostname"].tolist(), key="email_device")
+                selected = view.loc[view["hostname"] == selected_name].iloc[0]
+                enabled = st.checkbox(
+                    "Enviar correo de alerta para este dispositivo",
+                    value=bool(selected["email_notifications_enabled"]),
+                    key=f"email-enabled-{selected['id']}",
+                )
+                if st.form_submit_button("Guardar"):
+                    try:
+                        api_patch(
+                            f"/devices/{selected['id']}",
+                            {"email_notifications_enabled": enabled},
+                        )
+                    except httpx.HTTPStatusError as exc:
+                        st.error(f"No se pudo guardar: HTTP {exc.response.status_code}")
+                    else:
+                        st.success("Preferencia de correo actualizada")
 
         st.subheader("Métricas")
         name = st.selectbox("Dispositivo", view["hostname"].tolist())
