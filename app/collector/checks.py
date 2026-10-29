@@ -13,7 +13,7 @@ from app.models.device import Device, DeviceStatus
 async def check_icmp(device: Device, timeout: float = 2.0, count: int = 3) -> list[MetricRecord]:
     try:
         host = await async_ping(
-            device.ip_address, count=count, interval=0.2, timeout=timeout, privileged=False
+            device.ip_address, count=count, interval=1.0, timeout=timeout, privileged=False
         )
     except Exception as exc:
         return [MetricRecord(device.id, "ICMP_RTT", None, DeviceStatus.DOWN, f"error: {exc}")]
